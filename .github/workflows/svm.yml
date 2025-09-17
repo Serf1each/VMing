@@ -24,7 +24,10 @@ jobs:
 
       - name: Run SVM
         run: python svm.py
-        env:
-          SVM_SLACK_WEBHOOK: ${{ secrets.SVM_SLACK_WEBHOOK }}
-          SVM_HEARTBEAT: "1"   # <— add this
-          SVM_SELF_TEST: "1"   # <— remove after you see the test message
+    env:
+        SVM_SLACK_WEBHOOK: ${{ secrets.SVM_SLACK_WEBHOOK }}
+        SVM_HEARTBEAT: "1"
+        SVM_DEBUG: "1"          # <— shows totals/in-scope in logs
+        SVM_SCOPE_ALL: "1"      # <— ONE run to seed/verify ingestion; then set back to "0"
+        SVM_WINDOW_HOURS: "720" # last 30 days; avoid 8760 without NVD key
+
