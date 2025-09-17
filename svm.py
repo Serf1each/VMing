@@ -253,48 +253,94 @@ def pull_nvd():
 
 
 def main():
+    # ---- pulls + existing set
     existing = load_existing()
+
+    # Optional one-time Slack wiring check
+    if os.getenv("SVM_SELF_TEST", "0") == "1":
+        post_slack("✅ SVM online: Slack webhook connected and script executed.")
+
     rows = []
     rows += pull_cisa_kev()
     rows += pull_nvd()
-    
-    # de-dupe by CVE id against prior CSV
-    new = [r for r in rows if r["cve_id"] and r["cve_id"] not in existing]
+
+    # De-dupe by CVE id against prior CSV
+    new = [r for r in rows if r.get("cve_id") and r["cve_id"] not in existing]
+
+    # Suppress first-run flood: seed CSV silently, no Slack
+    SUPPRESS_SEED = os.getenv("SVM_SUPPRESS_SEED", "1") == "1"
+    if SUPPRESS_SEED and not existing and new:
+        append_rows(new)
+        print(f"[INFO] Seeded {len(new)} historical rows (no Slack alerts).")
+        print("New items added: 0")
+        return 0
+
+    # Persist new items
     if new:
         append_rows(new)
 
-    # One-time Slack self-test (set SVM_SELF_TEST=1 in workflow to verify wiring)
-    if SELF_TEST:
-        post_slack("✅ SVM online: Slack webhook connected and script executed.")
+    # ---- post-filtering knobs (safe defaults if envs not set)
+    FAMILIES = set(os.getenv("SVM_FAMILIES", "bluetooth,wifi,zigbee,z-wave,lora").split(","))
+    MIN_SEV = os.getenv("SVM_MIN_SEVERITY", "MEDIUM").upper()
+    MAX_ALERTS = int(os.getenv("SVM_MAX_ALERTS", "25"))
 
-    
-    # 🔔 Slack + console alerts
-    high_impact = [
-        r for r in new 
-        if r["exploited"] == "true" 
-        or r["severity"] in ("HIGH", "CRITICAL") 
-        or r["family"] == "bluetooth"
+    sev_rank = {"": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+    min_rank = sev_rank.get(MIN_SEV, 2)
+
+    # Keep only selected families + min severity
+    new = [
+        r for r in new
+        if (r.get("family") in FAMILIES) and (sev_rank.get((r.get("severity") or "").upper(), 0) >= min_rank)
     ]
-    for r in high_impact:
-        sev = r["severity"] or "—"
-        emoji = "🚨" if r["exploited"] == "true" or sev in ("CRITICAL", "HIGH") else "📣"
-        title = r["title"][:120]
-        txt = (
-            f"{emoji} {r['cve_id']} | {r['family'].upper()} | "
-            f"sev={sev} | exploited={r['exploited']}\n"
-            f"{title}\nPublished: {r['published']}  "
-            f"Modified: {r['last_modified']}"
+
+    # Cap volume (prefer exploited/HIGH+)
+    if len(new) > MAX_ALERTS:
+        def sort_key(r):
+            # exploited first, then high severity first
+            exploited = 0 if r.get("exploited") == "true" else 1
+            sev = 0 if (r.get("severity") in ("CRITICAL", "HIGH")) else 1
+            return (exploited, sev)
+        new = sorted(new, key=sort_key)[:MAX_ALERTS]
+
+    # === DIGEST MODE (one Slack message per run, CVE IDs hyperlinked) ===
+    hi = [r for r in new if r.get("exploited") == "true" or r.get("severity") in ("HIGH", "CRITICAL") or r.get("family") == "bluetooth"]
+    lo = [r for r in new if r not in hi]
+
+    def cve_link(cve):
+        return f"<https://nvd.nist.gov/vuln/detail/{cve}|{cve}>"
+
+    def line(r):
+        sev = (r.get("severity") or "—")
+        title = (r.get("title") or "")[:90]
+        fam = r.get("family") or "other"
+        exp = r.get("exploited") or "false"
+        return f"• *{cve_link(r['cve_id'])}* ({fam}, sev={sev}, exploited={exp}) — {title}"
+
+    if hi or lo:
+        lines = []
+        if hi:
+            lines.append(f"*Priority items ({len(hi)})*")
+            lines += [line(r) for r in hi[:20]]
+            if len(hi) > 20:
+                lines.append(f"…and {len(hi) - 20} more")
+
+        if lo:
+            lines.append("")
+            lines.append(f"*Other in-scope items ({len(lo)})*")
+            lines += [line(r) for r in lo[:10]]
+            if len(lo) > 10:
+                lines.append(f"…and {len(lo) - 10} more")
+
+        post_slack(
+            f"📬 SVM digest — new items: {len(new)} (priority {len(hi)})",
+            blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}}]
         )
-        post_slack(txt)   # 👈 sends alert to Slack webhook
+    elif os.getenv("SVM_HEARTBEAT", "0") == "1":
+        post_slack("🫀 SVM heartbeat: no new in-scope items this run.")
 
-    # 🫀 Optional: heartbeat digest when nothing new matched
-    if not new:
-        hb = os.getenv("SVM_HEARTBEAT", "0") == "1"
-        if hb:
-            post_slack("🫀 SVM heartbeat: no new in-scope items this run.")
-
-    
     print(f"New items added: {len(new)}")
+    return 0
+
 
 
 if __name__ == "__main__":
