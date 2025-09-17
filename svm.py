@@ -287,20 +287,27 @@ def main():
     sev_rank = {"": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
     min_rank = sev_rank.get(MIN_SEV, 2)
 
-    # Keep only selected families + min severity
+        # Keep only selected families + min severity
     new = [
         r for r in new
-        if (r.get("family") in FAMILIES) and (sev_rank.get((r.get("severity") or "").upper(), 0) >= min_rank)
+        if (r.get("family") in FAMILIES)
+        and (sev_rank.get((r.get("severity") or "").upper(), 0) >= min_rank)
     ]
 
     # Cap volume (prefer exploited/HIGH+)
     if len(new) > MAX_ALERTS:
         def sort_key(r):
-            # exploited first, then high severity first
             exploited = 0 if r.get("exploited") == "true" else 1
             sev = 0 if (r.get("severity") in ("CRITICAL", "HIGH")) else 1
             return (exploited, sev)
         new = sorted(new, key=sort_key)[:MAX_ALERTS]
+
+    # 🫀 Heartbeat when nothing survives filtering/capping
+    if not new:
+        if os.getenv("SVM_HEARTBEAT", "0") == "1":
+            post_slack("🫀 SVM heartbeat: no new in-scope items this run.")
+        print("New items added: 0")
+        return 0
 
     # === DIGEST MODE (one Slack message per run, CVE IDs hyperlinked) ===
     hi = [r for r in new if r.get("exploited") == "true" or r.get("severity") in ("HIGH", "CRITICAL") or r.get("family") == "bluetooth"]
