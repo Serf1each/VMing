@@ -37,10 +37,16 @@ KEYWORDS = [r"bluetooth", r"\bble\b", r"br/edr", r"bluffs", r"knob",
 SCOPE_RE = re.compile("|".join(KEYWORDS), re.I)
 
 def http_get_json(url, headers=None, params=None):
-    if params: url += ("?" + urlencode(params))
-    req = Request(url, headers=headers or {})
-    with urlopen(req, timeout=60) as r:
-        return json.load(r)
+    if params:
+        url += ("?" + urlencode(params))
+    req = Request(url, headers=headers or {"User-Agent": "Span-SVM/1.0"})
+    try:
+        with urlopen(req, timeout=60) as r:
+            return json.load(r)
+    except Exception as e:
+        print(f"[WARN] GET {url} failed: {e}")
+        return None
+
 
 def load_existing():
     if not CSV_PATH.exists(): return set()
@@ -98,22 +104,40 @@ def pull_cisa_kev():
     return out
 
 def pull_nvd():
-    # NVD CVE API v2 (rolling window + keywordSearch)
     base = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-    start = (NOW - dt.timedelta(hours=WINDOW_HOURS)).strftime("%Y-%m-%dT%H:%M:%S.000")
+    # NVD requires paired timestamps and expects Zulu time with milliseconds
+    start = (NOW - dt.timedelta(hours=WINDOW_HOURS)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    end   = NOW.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
     params = {
         "lastModStartDate": start,
-        "resultsPerPage": 2000,  # NVD caps apply; adjust/paginate if needed
-        "keywordSearch": " OR ".join(["bluetooth","zigbee","z-wave","802.11","halow","wifi","lora","bluez","rfcomm","avdtp","gatt"])
+        "lastModEndDate": end,
+        "resultsPerPage": 2000,
+        "keywordSearch": " OR ".join([
+            "bluetooth","zigbee","z-wave","802.11","halow","wifi",
+            "lora","bluez","rfcomm","avdtp","gatt"
+        ])
     }
-    data = http_get_json(base, params=params)
+
+    # Optional API key support (improves quotas)
+    headers = {"User-Agent": "Span-SVM/1.0"}
+    api_key = os.getenv("SVM_NVD_API_KEY")
+    if api_key:
+        headers["apiKey"] = api_key
+
+    data = http_get_json(base, headers=headers, params=params)
+    if not data:
+        print("[WARN] NVD pull failed or returned no data; continuing without NVD.")
+        return []
+
     out = []
     for item in data.get("vulnerabilities", []):
         c = item["cve"]
         cve_id = c.get("id","")
         desc = " ".join(d.get("value","") for d in c.get("descriptions",[]) if d.get("lang")=="en")
-        if not in_scope(desc): 
+        if not in_scope(desc):
             continue
+
         metrics = c.get("metrics",{})
         cvss = ""
         severity = ""
@@ -121,16 +145,17 @@ def pull_nvd():
             if k in metrics and metrics[k]:
                 m = metrics[k][0]["cvssData"]
                 cvss = str(m.get("baseScore",""))
-                severity = m.get("baseSeverity","") or severity
+                severity = (m.get("baseSeverity","") or severity).upper()
                 break
+
         vendors=set(); products=set()
         for node in c.get("configurations",[]):
-            for cpe in node.get("nodes",[]):
-                for match in cpe.get("cpeMatch",[]):
-                    uri = match.get("criteria","")
-                    parts = uri.split(":")
+            for n in node.get("nodes",[]):
+                for match in n.get("cpeMatch",[]):
+                    parts = match.get("criteria","").split(":")
                     if len(parts) >= 5:
                         vendors.add(parts[3]); products.add(parts[4])
+
         refs = ", ".join(r.get("url","") for r in c.get("references",[]))
         out.append({
             "ingested_at": NOW.isoformat(timespec="seconds")+"Z",
@@ -140,7 +165,7 @@ def pull_nvd():
             "published": c.get("published",""),
             "last_modified": c.get("lastModified",""),
             "cvss": cvss,
-            "severity": severity.upper(),
+            "severity": severity,
             "exploited": "false",
             "family": family_label(desc),
             "vendors": ";".join(sorted(vendors)),
@@ -148,6 +173,7 @@ def pull_nvd():
             "refs": refs[:1500]
         })
     return out
+
 
 def main():
     existing = load_existing()
