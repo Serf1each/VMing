@@ -26,4 +26,5 @@ jobs:
         run: python svm.py
         env:
           SVM_SLACK_WEBHOOK: ${{ secrets.SVM_SLACK_WEBHOOK }}
+          SVM_HEARTBEAT: "1"   # <— add this
           SVM_SELF_TEST: "1"   # <— remove after you see the test message
