@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 
 CSV_PATH = Path(os.getenv("SVM_CSV", "svm_feed.csv"))
 NOW = dt.datetime.utcnow()
-WINDOW_HOURS = int(os.getenv("SVM_WINDOW_HOURS", "48"))
+WINDOW_HOURS = int(os.getenv("SVM_WINDOW_HOURS", "168"))
 
 SELF_TEST = os.getenv("SVM_SELF_TEST", "0") == "1"
 
@@ -211,6 +211,13 @@ def main():
             f"Modified: {r['last_modified']}"
         )
         post_slack(txt)   # 👈 sends alert to Slack webhook
+
+    # 🫀 Optional: heartbeat digest when nothing new matched
+    if not new:
+        hb = os.getenv("SVM_HEARTBEAT", "0") == "1"
+        if hb:
+            post_slack("🫀 SVM heartbeat: no new in-scope items this run.")
+
     
     print(f"New items added: {len(new)}")
 
