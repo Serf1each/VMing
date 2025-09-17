@@ -6,11 +6,10 @@ from urllib.parse import urlencode
 CSV_PATH = Path(os.getenv("SVM_CSV", "svm_feed.csv"))
 NOW = dt.datetime.utcnow()
 WINDOW_HOURS = int(os.getenv("SVM_WINDOW_HOURS", "8760"))
-#   SELF_TEST = os.getenv("SVM_SELF_TEST", "0") == "1"
 
 DEBUG = os.getenv("SVM_DEBUG", "0") == "1"
 SCOPE_ALL = os.getenv("SVM_SCOPE_ALL", "0") == "1"  # bypass filters to test
-
+SELF_TEST = os.getenv("SVM_SELF_TEST", "0") == "1"
 
 # --- add near the top ---
 import json, os, urllib.request
