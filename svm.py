@@ -7,6 +7,8 @@ CSV_PATH = Path(os.getenv("SVM_CSV", "svm_feed.csv"))
 NOW = dt.datetime.utcnow()
 WINDOW_HOURS = int(os.getenv("SVM_WINDOW_HOURS", "48"))
 
+SELF_TEST = os.getenv("SVM_SELF_TEST", "0") == "1"
+
 # --- add near the top ---
 import json, os, urllib.request
 
@@ -186,6 +188,11 @@ def main():
     if new:
         append_rows(new)
 
+    # One-time Slack self-test (set SVM_SELF_TEST=1 in workflow to verify wiring)
+    if SELF_TEST:
+        post_slack("✅ SVM online: Slack webhook connected and script executed.")
+
+    
     # 🔔 Slack + console alerts
     high_impact = [
         r for r in new 
