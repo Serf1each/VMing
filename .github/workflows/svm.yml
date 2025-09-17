@@ -23,6 +23,6 @@ jobs:
         run: python -m pip install --upgrade pip
 
       - name: Run SVM
-        run: python svm.py
+        run: python VMing/svm.py
         env:
           SVM_SLACK_WEBHOOK: ${{ secrets.SVM_SLACK_WEBHOOK }}
