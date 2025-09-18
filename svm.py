@@ -287,7 +287,7 @@ def main():
     sev_rank = {"": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
     min_rank = sev_rank.get(MIN_SEV, 2)
 
-        # Keep only selected families + min severity
+    # Keep only selected families + min severity
     new = [
         r for r in new
         if (r.get("family") in FAMILIES)
@@ -310,6 +310,7 @@ def main():
         return 0
 
     # === DIGEST MODE (one Slack message per run, CVE IDs hyperlinked) ===
+
     hi = [r for r in new if r.get("exploited") == "true" or r.get("severity") in ("HIGH", "CRITICAL") or r.get("family") == "bluetooth"]
     lo = [r for r in new if r not in hi]
 
