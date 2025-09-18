@@ -17,16 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     env:                          # job-level env applies to all steps
       SVM_SLACK_WEBHOOK: ${{ secrets.SVM_SLACK_WEBHOOK }}
-      SVM_HEARTBEAT: "1"          # send "no new" message when empty
-      SVM_SUPPRESS_SEED: "1"      # first run seeds quietly (no Slack flood)
-      SVM_WINDOW_HOURS: "168"     # 7-day lookback
+      SVM_HEARTBEAT: "1"
+      SVM_SUPPRESS_SEED: "1"
+      SVM_WINDOW_HOURS: "168"      # or your preference
       SVM_FAMILIES: "bluetooth,wifi"
-      SVM_MIN_SEVERITY: "HIGH"    # alert on HIGH/CRITICAL (tune as needed)
-      SVM_MAX_ALERTS: "25"        # hard cap per run
-      SVM_SCOPE_ALL: "0"          # keep OFF (use only for one-off debugging)
-      SVM_DEBUG: "0"              # set to "1" temporarily if you want counters
-      # SVM_NVD_API_KEY is optional; add as a secret then uncomment here:
-      # SVM_NVD_API_KEY: ${{ secrets.SVM_NVD_API_KEY }}
+      SVM_MIN_SEVERITY: "HIGH"
+      SVM_MAX_ALERTS: "25"
+      SVM_NEWS: "1"                # turn on the news block
+      SVM_NEWSAPI_KEY: ${{ secrets.SVM_NEWSAPI_KEY }}
+      # SVM_NVD_API_KEY: ${{ secrets.SVM_NVD_API_KEY }}   # optional
+
 
     steps:
       - name: Checkout
