@@ -24,10 +24,14 @@ jobs:
 
       - name: Run SVM
         run: python svm.py
-        env:                         # 👈 env must be indented under the step
+        env:
           SVM_SLACK_WEBHOOK: ${{ secrets.SVM_SLACK_WEBHOOK }}
           SVM_HEARTBEAT: "1"
-          SVM_DEBUG: "1"
-          SVM_SCOPE_ALL: "0"         # switch back to 0 after seeding
-          SVM_WINDOW_HOURS: "720"    # 30 days
+          SVM_WINDOW_HOURS: "168"     # 7 days
+          SVM_MAX_ALERTS: "15"        # hard cap per run
+          SVM_FAMILIES: "bluetooth,wifi"   # keep it tight
+          SVM_MIN_SEVERITY: "HIGH"    # only HIGH/CRITICAL
+          SVM_SCOPE_ALL: "0"          # IMPORTANT: off
+          SVM_SELF_TEST: "0"          # no extra test pings
+          SVM_DEBUG: "0"              # no debug noise
 
