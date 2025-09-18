@@ -1,37 +1,58 @@
-# This is a basic workflow to help you get started with Actions
-
 name: Span Vulnerability Monitor
 
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: '0 * * * *'   # hourly; adjust as needed
+    - cron: '0 9 * * *'   # daily at 09:00 UTC (5am US/Eastern)
+
+permissions:
+  contents: write          # needed to push updated svm_feed.csv
+
+concurrency:
+  group: svm-monitor
+  cancel-in-progress: false
 
 jobs:
   run-monitor:
     runs-on: ubuntu-latest
+    env:                          # job-level env applies to all steps
+      SVM_SLACK_WEBHOOK: ${{ secrets.SVM_SLACK_WEBHOOK }}
+      SVM_HEARTBEAT: "1"          # send "no new" message when empty
+      SVM_SUPPRESS_SEED: "1"      # first run seeds quietly (no Slack flood)
+      SVM_WINDOW_HOURS: "168"     # 7-day lookback
+      SVM_FAMILIES: "bluetooth,wifi"
+      SVM_MIN_SEVERITY: "HIGH"    # alert on HIGH/CRITICAL (tune as needed)
+      SVM_MAX_ALERTS: "25"        # hard cap per run
+      SVM_SCOPE_ALL: "0"          # keep OFF (use only for one-off debugging)
+      SVM_DEBUG: "0"              # set to "1" temporarily if you want counters
+      # SVM_NVD_API_KEY is optional; add as a secret then uncomment here:
+      # SVM_NVD_API_KEY: ${{ secrets.SVM_NVD_API_KEY }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true   # needed to push CSV using GITHUB_TOKEN
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install deps (optional)
+      - name: Upgrade pip (optional)
         run: python -m pip install --upgrade pip
 
       - name: Run SVM
         run: python svm.py
-        env:
-          SVM_SLACK_WEBHOOK: ${{ secrets.SVM_SLACK_WEBHOOK }}
-          SVM_HEARTBEAT: "1"
-          SVM_WINDOW_HOURS: "168"     # 7 days
-          SVM_MAX_ALERTS: "15"        # hard cap per run
-          SVM_FAMILIES: "bluetooth,wifi"   # keep it tight
-          SVM_MIN_SEVERITY: "HIGH"    # only HIGH/CRITICAL
-          SVM_SCOPE_ALL: "0"          # IMPORTANT: off
-          SVM_SELF_TEST: "0"          # no extra test pings
-          SVM_DEBUG: "0"              # no debug noise
 
+      - name: Commit updated CSV
+        run: |
+          if git status --porcelain | grep -q "svm_feed.csv"; then
+            git config user.name "svm-bot"
+            git config user.email "svm-bot@users.noreply.github.com"
+            git add svm_feed.csv
+            git commit -m "Update svm_feed.csv"
+            git push
+          else
+            echo "No CSV changes to commit."
+          fi
