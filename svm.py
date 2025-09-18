@@ -16,21 +16,38 @@ import json, os, urllib.request
 
 SLACK_WEBHOOK = os.getenv("SVM_SLACK_WEBHOOK")
 
-def post_slack(message, blocks=None):
-    """Send a message to Slack via Incoming Webhook."""
+import time
+import urllib.error
+
+def post_slack(message, blocks=None, max_retries=3):
+    """Send a message to Slack via Incoming Webhook with basic 429 backoff."""
     if not SLACK_WEBHOOK:
         return
     payload = {"text": message}
     if blocks:
         payload["blocks"] = blocks
+
+    data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         SLACK_WEBHOOK,
-        data=json.dumps(payload).encode("utf-8"),
+        data=data,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=15) as _:
-        pass
+
+    for attempt in range(max_retries):
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return  # success
+        except urllib.error.HTTPError as e:
+            if e.code == 429:  # Slack rate limit
+                retry_after = int(e.headers.get("Retry-After", "1"))
+                time.sleep(retry_after + 1)
+                continue
+            time.sleep(1 + attempt)  # small backoff then retry
+        except Exception:
+            time.sleep(1 + attempt)
+
 
 
 # ---- Scope filters
