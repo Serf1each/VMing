@@ -3165,3 +3165,4 @@ ingested_at,source,cve_id,title,published,last_modified,cvss,severity,exploited,
 2025-09-18T15:18:59Z,NVD,CVE-2025-29886,security@qnapsecurity.com.tw CVE-2025-29886,2025-08-29T18:15:35.233,2025-09-18T14:23:34.787,6.5,MEDIUM,false,other,,,https://www.qnap.com/en/security-advisory/qsa-25-19
 2025-09-18T15:18:59Z,NVD,CVE-2025-55241,secure@microsoft.com CVE-2025-55241,2025-09-04T23:15:32.960,2025-09-18T14:15:50.110,9.0,CRITICAL,false,other,,,"https://msrc.microsoft.com/update-guide/vulnerability/CVE-2025-55241, https://dirkjanm.io/obtaining-global-admin-in-every-entra-id-tenant-with-actor-tokens/"
 
+2025-09-18T15:23:21Z,CISA-KEV,CVE-2025-27363,FreeType Out-of-Bounds Write Vulnerability,2025-05-06,2025-05-06,,HIGH,true,bluetooth,FreeType,FreeType,"Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable."
